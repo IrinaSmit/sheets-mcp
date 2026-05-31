@@ -14,7 +14,26 @@ const sheets = google.sheets({ version: "v4", auth: oauth2Client });
 const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 
 app.get("/", (req, res) => res.json({ status: "ok", name: "sheets-mcp" }));
+app.get("/authorize", (req, res) => {
+  const authUrl = oauth2Client.generateAuthUrl({
+    access_type: "offline",
+    scope: ["https://www.googleapis.com/auth/spreadsheets"],
+    redirect_uri: process.env.REDIRECT_URI
+  });
+  res.redirect(authUrl);
+});
 
+app.get("/callback", async (req, res) => {
+  const { code } = req.query;
+  if (!code) return res.send("Нет кода авторизации");
+  try {
+    const { tokens } = await oauth2Client.getToken(code);
+    oauth2Client.setCredentials(tokens);
+    res.send(`Авторизация успешна! Refresh token: ${tokens.refresh_token || "уже сохранён"}`);
+  } catch (e) {
+    res.send("Ошибка: " + e.message);
+  }
+});
 app.get("/sse", (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
