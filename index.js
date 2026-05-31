@@ -15,25 +15,32 @@ const SPREADSHEET_ID = process.env.SPREADSHEET_ID;
 
 app.get("/", (req, res) => res.json({ status: "ok", name: "sheets-mcp" }));
 app.get("/authorize", (req, res) => {
+  const { redirect_uri, state } = req.query;
   const authUrl = oauth2Client.generateAuthUrl({
     access_type: "offline",
     scope: ["https://www.googleapis.com/auth/spreadsheets"],
-    redirect_uri: process.env.REDIRECT_URI
+    redirect_uri: redirect_uri || process.env.REDIRECT_URI,
+    state: state
   });
   res.redirect(authUrl);
 });
 
 app.get("/callback", async (req, res) => {
-  const { code } = req.query;
-  if (!code) return res.send("Нет кода авторизации");
+  const { code, state } = req.query;
+  if (!code) return res.status(400).send("Нет кода авторизации");
   try {
-    const { tokens } = await oauth2Client.getToken(code);
+    const { tokens } = await oauth2Client.getToken({
+      code,
+      redirect_uri: process.env.REDIRECT_URI
+    });
     oauth2Client.setCredentials(tokens);
-    res.send(`Авторизация успешна! Refresh token: ${tokens.refresh_token || "уже сохранён"}`);
+    const redirectUrl = `https://claude.ai/oauth/callback?code=${code}&state=${state || ""}`;
+    res.redirect(redirectUrl);
   } catch (e) {
-    res.send("Ошибка: " + e.message);
+    res.status(500).send("Ошибка: " + e.message);
   }
 });
+
 app.get("/sse", (req, res) => {
   res.setHeader("Content-Type", "text/event-stream");
   res.setHeader("Cache-Control", "no-cache");
